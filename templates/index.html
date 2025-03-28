@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Face Liveness Detection</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f4f4f4;
+        }
+        #video-feed {
+            max-width: 100%;
+            background-color: #f0f0f0;
+            border: 2px solid #333;
+            margin-top: 20px;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .live {
+            color: green;
+        }
+        .fake {
+            color: red;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .logout-btn {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .user-info {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="user-info">Welcome, {{ session['username'] }}!</div>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </div>
+    <h1>Face Liveness Detection</h1>
+    <img id="video-feed" src="" alt="Live Video Feed">
+    <div id="status"></div>
+
+    <script>
+        const socket = io();
+        const videoFeed = document.getElementById('video-feed');
+        const statusElement = document.getElementById('status');
+
+        socket.on('video_feed', (image) => {
+            videoFeed.src = 'data:image/jpeg;base64,' + image;
+        });
+
+        socket.on('liveness_status', (status) => {
+            statusElement.textContent = status.message;
+            statusElement.className = status.is_live ? 'live' : 'fake';
+        });
+    </script>
+</body>
+</html>
