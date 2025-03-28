@@ -18,6 +18,8 @@ from flask_dance.contrib.google import make_google_blueprint, google
 from flask_dance.consumer.storage.session import SessionStorage
 from requests_oauthlib import OAuth2Session
 from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
+load_dotenv()
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
@@ -406,8 +408,8 @@ app = Flask(__name__)
 app.secret_key = 'J@y@nshum@nprojec#'  # Important for sessions
 socketio = SocketIO(app)
 
-app.config["GOOGLE_OAUTH_CLIENT_ID"] = "921549520582-43vg6ccs3m9aeuhmug2k5l6jtbtvch6e.apps.googleusercontent.com"  # Replace with your client ID
-app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = "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"  # Replace with your client secret
+app.config["GOOGLE_OAUTH_CLIENT_ID"] = os.getenv("GOOGLE_OAUTH_CLIENT_ID")  # Replace with your client ID
+app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")  # Replace with your client secret
 
 # Create Google blueprint
 google_bp = make_google_blueprint(
