@@ -14,6 +14,12 @@ import uuid
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
+from flask_dance.contrib.google import make_google_blueprint, google
+from flask_dance.consumer.storage.session import SessionStorage
+from requests_oauthlib import OAuth2Session
+from authlib.integrations.flask_client import OAuth
+
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 class LivenessDetector:
     def __init__(self):
@@ -400,6 +406,18 @@ app = Flask(__name__)
 app.secret_key = 'J@y@nshum@nprojec#'  # Important for sessions
 socketio = SocketIO(app)
 
+app.config["GOOGLE_OAUTH_CLIENT_ID"] = "921549520582-43vg6ccs3m9aeuhmug2k5l6jtbtvch6e.apps.googleusercontent.com"  # Replace with your client ID
+app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = "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"  # Replace with your client secret
+
+# Create Google blueprint
+google_bp = make_google_blueprint(
+    scope=["profile", "email"],
+    storage=SessionStorage(),
+    redirect_to="index"
+)
+app.register_blueprint(google_bp, url_prefix="/login")
+
+
 # Global variables
 detector = LivenessDetector()
 user_db = UserDatabase()
@@ -454,6 +472,33 @@ def login():
             flash('Invalid username or password', 'error')
     
     return render_template('login.html')
+
+
+@app.route('/login/google')
+def google_login():
+    if not google.authorized:
+        return redirect(url_for("google.login"))
+    
+    # Get user info from Google
+    resp = google.get("/oauth2/v2/userinfo")
+    assert resp.ok, resp.text
+    google_info = resp.json()
+    
+    # Extract email and name
+    email = google_info.get('email')
+    name = google_info.get('name')
+    
+    # Check if user exists in database
+    if not user_db.user_exists(email=email):
+        # Create a new user with a temporary password
+        temp_password = str(uuid.uuid4())
+        user_db.add_user(name, email, temp_password)
+    
+    # Log in the user
+    session['username'] = name
+    session['email'] = email
+    flash('Google login successful!', 'success')
+    return redirect(url_for('index'))
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
