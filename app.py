@@ -396,20 +396,20 @@ class EmailService:
 
 
 
-# Configure Email Service (Replace with your email credentials)
+# Configure Email Service 
 email_service = EmailService(
-    sender_email='abdprajapati090@gmail.com',  # Replace with your email
-    sender_password='cyoe lktn uyxw tgof'   # Use App Password for Gmail
+    sender_email='abdprajapati090@gmail.com', 
+    sender_password='cyoe lktn uyxw tgof'   
 )
     
 
 # Flask and SocketIO setup
 app = Flask(__name__)
-app.secret_key = 'J@y@nshum@nprojec#'  # Important for sessions
+app.secret_key = 'J@y@nshum@nprojec#'  
 socketio = SocketIO(app)
 
-app.config["GOOGLE_OAUTH_CLIENT_ID"] = os.getenv("GOOGLE_OAUTH_CLIENT_ID")  # Replace with your client ID
-app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")  # Replace with your client secret
+app.config["GOOGLE_OAUTH_CLIENT_ID"] = os.getenv("GOOGLE_OAUTH_CLIENT_ID")  
+app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")  
 
 # Create Google blueprint
 google_bp = make_google_blueprint(
