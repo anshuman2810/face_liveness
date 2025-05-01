@@ -4,7 +4,7 @@ import time
 import base64
 import threading
 from collections import deque
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_socketio import SocketIO, emit
 import pandas as pd
 import os
@@ -21,7 +21,9 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 load_dotenv()
 
+# Configure environment variables for OAuth
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
 
 class LivenessDetector:
     def __init__(self):
@@ -408,17 +410,20 @@ app = Flask(__name__)
 app.secret_key = 'J@y@nshum@nprojec#'  
 socketio = SocketIO(app)
 
+# Set client ID and secret from environment variables
 app.config["GOOGLE_OAUTH_CLIENT_ID"] = os.getenv("GOOGLE_OAUTH_CLIENT_ID")  
 app.config["GOOGLE_OAUTH_CLIENT_SECRET"] = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")  
 
-# Create Google blueprint
+# Updated Google blueprint with correct settings
 google_bp = make_google_blueprint(
+    client_id=app.config["GOOGLE_OAUTH_CLIENT_ID"],
+    client_secret=app.config["GOOGLE_OAUTH_CLIENT_SECRET"],
     scope=["profile", "email"],
     storage=SessionStorage(),
-    redirect_to="index"
+    redirect_to="google_authorized",  # Changed to redirect to our custom handler
+    reprompt_consent=False
 )
 app.register_blueprint(google_bp, url_prefix="/login")
-
 
 # Global variables
 detector = LivenessDetector()
@@ -456,7 +461,8 @@ def video_stream():
 
 @app.route('/')
 def index():
-    if 'username' not in session:
+    # Updated to check for either username OR email
+    if 'username' not in session and 'email' not in session:
         return redirect(url_for('login'))
     return render_template('index.html')
 
@@ -475,32 +481,56 @@ def login():
     
     return render_template('login.html')
 
-
+# Updated Google OAuth route
 @app.route('/login/google')
 def google_login():
     if not google.authorized:
         return redirect(url_for("google.login"))
     
-    # Get user info from Google
-    resp = google.get("/oauth2/v2/userinfo")
-    assert resp.ok, resp.text
-    google_info = resp.json()
+    return redirect(url_for("google_authorized"))
+
+# New route to handle successful Google authorization
+@app.route('/google_authorized')
+def google_authorized():
+    if not google.authorized:
+        flash('Google login failed. Please try again.', 'error')
+        return redirect(url_for('login'))
     
-    # Extract email and name
-    email = google_info.get('email')
-    name = google_info.get('name')
+    try:
+        # Get user info from Google
+        resp = google.get("/oauth2/v2/userinfo")
+        assert resp.ok, resp.text
+        google_info = resp.json()
+        
+        # Extract email and name
+        email = google_info.get('email')
+        name = google_info.get('name', email.split('@')[0])  # Use part of email as name if not provided
+        
+        # Check if user exists in database
+        if not user_db.user_exists(email=email):
+            # Create a new user with a temporary password
+            temp_password = str(uuid.uuid4())
+            user_db.add_user(name, email, temp_password)
+        
+        # Log in the user
+        session['username'] = name
+        session['email'] = email
+        
+        # Debug print
+        print(f"Google login successful: {name} ({email})")
+        
+        flash('Google login successful!', 'success')
+        return redirect(url_for('index'))
     
-    # Check if user exists in database
-    if not user_db.user_exists(email=email):
-        # Create a new user with a temporary password
-        temp_password = str(uuid.uuid4())
-        user_db.add_user(name, email, temp_password)
-    
-    # Log in the user
-    session['username'] = name
-    session['email'] = email
-    flash('Google login successful!', 'success')
-    return redirect(url_for('index'))
+    except Exception as e:
+        print(f"Error during Google login: {str(e)}")
+        flash('An error occurred during Google login. Please try again.', 'error')
+        return redirect(url_for('login'))
+
+# Debug route to check session values
+@app.route('/debug_session')
+def debug_session():
+    return jsonify(dict(session))
 
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
@@ -533,6 +563,7 @@ def signup():
         return redirect(url_for('login'))
     
     return render_template('signup.html')
+
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -585,13 +616,14 @@ def reset_password(token):
 @app.route('/logout')
 def logout():
     session.pop('username', None)
+    session.pop('email', None)  # Clear both username and email
     flash('You have been logged out', 'success')
     return redirect(url_for('login'))
 
 @socketio.on('connect')
 def handle_connect():
     global is_streaming
-    if 'username' in session and not is_streaming:
+    if ('username' in session or 'email' in session) and not is_streaming:
         is_streaming = True
         socketio.start_background_task(video_stream)
 
